@@ -1,0 +1,52 @@
+#!/usr/bin/env bash
+
+
+# Need GNU sed on macos and BSD
+if [ "$(command -v gsed)" ]; then
+	readonly sed_command="gsed "
+else
+	readonly sed_command="sed "
+fi
+if [[ ! $($sed_command --version | grep 'GNU') ]]; then
+    echo "You need GNU sed."
+fi
+
+if [[ ! $(command -v yq) ]]; then 
+    echo "Install yq first"
+    exit 1
+fi
+
+set -euo pipefail
+
+# Read yaml tags properties in obsidian files, then
+# destroy properties & insert #tags corresponding to 'tags:' properties
+
+#todo :
+# export to a folder and keep filename
+
+readonly export_file="${1/.md/.md.2}"
+
+readarray -t tags < <(
+counter=0
+while IFS="" read -r line || [[ -n "$p" ]]
+do
+  if [[ "${line}" == '---' && $counter -eq 1 ]]; then
+  	break
+  fi
+  if [[ "${line}" == '---' && $counter -eq 0 ]]; then
+  	counter=$((counter +1))
+  fi
+  printf '%s\n' "$line"
+done < "${1}" | yq '.tags[] | select(. )' )
+
+$sed_command '/---/,/---/d' "${1}" > "${export_file}"
+
+# itérer sur l'array
+
+$sed_command -i "1s/^/\n/" "${export_file}"
+for i in ${tags[@]}
+    do
+    $sed_command -i "1s/^/\#${i}\n/" "${export_file}"
+done
+
+
