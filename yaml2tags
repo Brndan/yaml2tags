@@ -8,15 +8,17 @@ else
 	readonly sed_command="sed "
 fi
 if [[ ! $($sed_command --version | grep 'GNU') ]]; then
-    echo "You need GNU sed."
+    echo "You need GNU sed." 1>&2
+    exit 1
 fi
 
 if [[ ! $(command -v yq) ]]; then 
-    echo "Install yq first"
+    echo "Install yq first" 1>&2
     exit 1
 fi
 
 set -euo pipefail
+
 
 # Read yaml tags properties in obsidian files, then
 # destroy properties & insert #tags corresponding to 'tags:' properties
@@ -24,7 +26,50 @@ set -euo pipefail
 #todo :
 # export to a folder and keep filename
 
-readonly export_file="${1/.md/.md.2}"
+
+args=$(getopt -o o:i: --long output-folder:input-file: -- "$@")
+if [[ $? -ne 0 ]]; then
+    exit 1;
+fi
+
+eval set -- "${args}"
+while true; do
+  case "${1}" in
+    -o | --output-folder)
+        readonly output-folder="${2}"
+        shift 2
+        ;;
+    -i | --input-file)
+        readonly input-file="${2}"
+        shift 2
+        ;;
+    --) shift; 
+        break 
+        ;;
+  esac
+done
+
+if [[ "${input-file}" == "" ]]; then
+    echo "Error: no file provided" 1>&2
+    exit 1
+fi
+
+if [[ "${output-folder}" == "" ]]; then
+    echo "Error: no output folder provided" 1>&2
+    exit 1
+fi
+
+if [[ -d "${output-folder}" && $(ls -A "${output-folder}") ]]; then
+    echo "Error: ${output-folder} must be empty." 1>&2
+    exit 1
+fi
+
+if [[ ! -d "${output-folder}" ]]; then
+    echo "${output-folder} does not exist." 1>&2
+    exit 1
+fi
+
+readonly export_file="${input-file#*/}"
 
 readarray -t tags < <(
 counter=0
@@ -39,7 +84,7 @@ do
   printf '%s\n' "$line"
 done < "${1}" | yq '.tags[] | select(. )' )
 
-$sed_command '/---/,/---/d' "${1}" > "${export_file}"
+$sed_command '/---/,/---/d' "${1}" > "${output-folder}/${export-file}"
 
 # itérer sur l'array
 
