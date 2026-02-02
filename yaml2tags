@@ -82,9 +82,9 @@ do
   	counter=$((counter +1))
   fi
   printf '%s\n' "$line"
-done < "${1}" | yq '.tags[] | select(. )' )
+done < "${input-file}" | yq '.tags[] | select(. )' )
 
-$sed_command '/---/,/---/d' "${1}" > "${output-folder}/${export-file}"
+$sed_command '/---/,/---/d' "${input-file}" > "${output-folder}/${export-file}"
 
 # itérer sur l'array
 
