@@ -1,14 +1,50 @@
 #!/usr/bin/env bash
 
+# Read yaml tags properties in obsidian files, then
+# destroy properties & insert #tags corresponding to 'tags:' properties
 
-# Need GNU sed on macos and BSD
-if [ "$(command -v gsed)" ]; then
-	readonly sed_command="gsed "
-else
-	readonly sed_command="sed "
+
+set -euo pipefail
+
+output_folder=""
+input_file=""
+
+while getopts ":o:i:" option 
+    do
+    case "${option}" in
+        o)
+            output_folder="${OPTARG}"
+            ;;
+        i)
+            input_file="${OPTARG}"
+            ;;
+        :)
+            echo "Error : missing argument." 1>&2
+            ;;
+        *) 
+            echo "Error: unknown option" 1>&2
+            exit 1
+            ;;
+    esac
+done
+
+if [[ "${input_file}" == "" ]]; then
+    echo "Error: no file provided" 1>&2
+    exit 1
 fi
-if [[ ! $($sed_command --version | grep 'GNU') ]]; then
-    echo "You need GNU sed." 1>&2
+
+if [[ "${output_folder}" == "" ]]; then
+    echo "Error: no output folder provided" 1>&2
+    exit 1
+fi
+
+if [[ ! -d "${output_folder}" ]]; then
+    echo "${output_folder} does not exist." 1>&2
+    exit 1
+fi
+
+if [[ $(ls -A "${output_folder}") ]]; then
+    echo "Error: ${output_folder} must be empty." 1>&2
     exit 1
 fi
 
@@ -17,59 +53,7 @@ if [[ ! $(command -v yq) ]]; then
     exit 1
 fi
 
-set -euo pipefail
-
-
-# Read yaml tags properties in obsidian files, then
-# destroy properties & insert #tags corresponding to 'tags:' properties
-
-#todo :
-# export to a folder and keep filename
-
-
-args=$(getopt -o o:i: --long output-folder:input-file: -- "$@")
-if [[ $? -ne 0 ]]; then
-    exit 1;
-fi
-
-eval set -- "${args}"
-while true; do
-  case "${1}" in
-    -o | --output-folder)
-        readonly output-folder="${2}"
-        shift 2
-        ;;
-    -i | --input-file)
-        readonly input-file="${2}"
-        shift 2
-        ;;
-    --) shift; 
-        break 
-        ;;
-  esac
-done
-
-if [[ "${input-file}" == "" ]]; then
-    echo "Error: no file provided" 1>&2
-    exit 1
-fi
-
-if [[ "${output-folder}" == "" ]]; then
-    echo "Error: no output folder provided" 1>&2
-    exit 1
-fi
-
-if [[ -d "${output-folder}" && $(ls -A "${output-folder}") ]]; then
-    echo "Error: ${output-folder} must be empty." 1>&2
-    exit 1
-fi
-
-if [[ ! -d "${output-folder}" ]]; then
-    echo "${output-folder} does not exist." 1>&2
-    exit 1
-fi
-
-readonly export_file="${input-file#*/}"
+readonly export_file="${output_folder}/${input_file#*/}"
 
 readarray -t tags < <(
 counter=0
@@ -81,17 +65,18 @@ do
   if [[ "${line}" == '---' && $counter -eq 0 ]]; then
   	counter=$((counter +1))
   fi
-  printf '%s\n' "$line"
-done < "${input-file}" | yq '.tags[] | select(. )' )
+  printf '%s\n' "${line}"
+done < "${input_file}" | yq '.tags[] | select(. )' )
 
-$sed_command '/---/,/---/d' "${input-file}" > "${output-folder}/${export-file}"
+echo "$tags"
 
-# itérer sur l'array
-
-$sed_command -i "1s/^/\n/" "${export_file}"
 for i in ${tags[@]}
     do
-    $sed_command -i "1s/^/\#${i}\n/" "${export_file}"
+    printf '#%s ' "${i}" >> "${export_file}"
 done
+printf '\n\n' >> "${export_file}"
+
+sed '/---/,/---/d' "${input_file}" >> "${export_file}"
+
 
 
